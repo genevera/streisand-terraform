@@ -1,0 +1,24 @@
+name: validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: opentofu/setup-opentofu@v1
+      - name: tofu fmt check
+        run: tofu fmt -check -recursive
+      - name: tofu validate (providers)
+        run: |
+          for p in digitalocean google aws linode; do
+            (cd providers/$p && tofu init -input=false && tofu validate)
+          done
+      - name: tofu test (plan-mode)
+        run: tofu test
+      - name: validate provision.sh
+        run: bash scripts/validate-provision.sh

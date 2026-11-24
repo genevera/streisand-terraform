@@ -1,0 +1,16 @@
+# DigitalOcean example tfvars. Copy to
+# providers/digitalocean/terraform.tfvars and export your DigitalOcean
+# Personal Access Token as DIGITALOCEAN_TOKEN (never commit it).
+
+server_name          = "streisand"
+region               = "nyc3"
+size                 = "s-1vcpu-1gb"
+image                = "ubuntu-24-04-x64"
+ssh_public_key       = file("/home/YOU/.ssh/id_ed25519.pub") # absolute path or raw key
+ssh_private_key_file = "/home/YOU/.ssh/id_ed25519"
+ssh_key_name         = "streisand"
+
+# Optional: a domain + admin email enables a Let's Encrypt certificate
+# for the gateway.
+# streisand_domain      = "streisand.example.com"
+# streisand_admin_email = "you@example.com"

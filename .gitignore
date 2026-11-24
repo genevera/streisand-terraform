@@ -1,0 +1,43 @@
+# Terraform / OpenTofu — local state & working dir
+.terraform/
+.terraform.tfstate.lock.info
+terraform.tfstate.d/
+*.tfstate
+*.tfstate.*
+
+# Variable files and overrides may hold secrets (API keys, tokens, passwords)
+# Lock files are checked in: they pin provider versions/hashes.
+!.terraform.lock.hcl
+*.tfvars
+*.tfvars.json
+terraform.tfvars
+terraform.tfvars.json
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# CLI config files can embed credentials
+.terraformrc
+terraform.rc
+
+# Crash logs
+crash.log
+crash.*.log
+
+# Plan output files may embed secrets
+*.tfplan
+plan.out
+
+# Generated client artifacts (contain private keys!)
+generated-docs/
+.streisand-upload/
+
+# Tool / editor local
+.serena/
+WATCHDOG.yml
+
+# OS / editor cruft
+.DS_Store
+*.swp
+*~

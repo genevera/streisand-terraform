@@ -1,0 +1,12 @@
+# Linode example tfvars. Copy to providers/linode/terraform.tfvars and
+# export LINODE_TOKEN (Personal Access Token). Never commit it.
+
+region               = "us-east"
+type                 = "g6-nanode-1"
+image                = "linode/ubuntu24.04"
+ssh_public_key       = file("/home/YOU/.ssh/id_ed25519.pub")
+ssh_private_key_file = "/home/YOU/.ssh/id_ed25519"
+ssh_key_label        = "streisand"
+
+# streisand_domain      = "streisand.example.com"
+# streisand_admin_email = "you@example.com"

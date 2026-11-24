@@ -1,0 +1,138 @@
+#cloud-config
+# Streisand bootstrap: runs once on first boot.
+# OS-level hardening plus the gateway/firewall/base-service packages; the
+# rest arrives via provision.sh + the file bundle uploaded by the
+# streisand-deploy module (cloud-provider user_data caps: DigitalOcean 16 KB).
+package_update: true
+package_upgrade: false
+# Keep /etc/hosts in sync with the instance hostname (AWS hostnames like
+# ip-10-x-x-x are not resolvable and sudo logs a warning on every call).
+manage_etc_hosts: true
+
+# Operator logins (rendered empty when no bootstrap key is supplied):
+# streisand-admin (sudo NOPASSWD, the deploy login) and streisand
+# (unprivileged daily use). Never "admin" - noble ships that as a group.
+${bootstrap_users_yaml}
+
+packages:
+  - apparmor
+  - apt-transport-https
+  - aptitude
+  - build-essential
+  - curl
+  - expect
+  - gnupg
+  - iptables
+  - markdown
+  - python3-pexpect
+  - software-properties-common
+  - qrencode
+  - unattended-upgrades
+  - uuid
+  - git
+  - apache2-utils
+  - dnsmasq
+  - nginx
+  - sslh
+  - ufw
+
+write_files:
+  # Hardened sshd_config (ssh role)
+  - path: /etc/ssh/sshd_config
+    permissions: "0644"
+    content: ${sshd_config_b64}
+    encoding: base64
+
+  # service0 dummy network (service-net role)
+  - path: /etc/systemd/network/10-service0.netdev
+    permissions: "0644"
+    content: ${service0_netdev_b64}
+    encoding: base64
+  - path: /etc/systemd/network/10-service0.network
+    permissions: "0644"
+    content: ${service0_network_b64}
+    encoding: base64
+  - path: /etc/dnsmasq.d/service-net.conf
+    permissions: "0644"
+    content: ${service_net_b64}
+    encoding: base64
+
+  # dnsmasq base config. Feature drop-ins under /etc/dnsmasq.d are added
+  # by provision.sh. write_files runs in the boot stage, before the final
+  # package install, so dnsmasq's postinst starts with this config instead
+  # of the stock one; the apt guard below keeps dpkg from conffile-prompting
+  # on the now-foreign /etc/dnsmasq.conf (cloud-init passes no --force-conf*
+  # and runs without a tty - a prompt there leaves the package half-configured).
+  - path: /etc/dnsmasq.conf
+    permissions: "0644"
+    content: ${dnsmasq_conf_b64}
+    encoding: base64
+
+  - path: /etc/apt/apt.conf.d/99streisand-force-conf
+    permissions: "0644"
+    content: |
+      Dpkg::Options:: "--force-confdef";
+      Dpkg::Options:: "--force-confold";
+
+  # Free port 53 for dnsmasq before its postinst runs (write_files precede
+  # the packages stage). With the stub listener off, resolved itself
+  # repoints /etc/resolv.conf at real upstreams (run/systemd/resolve/resolv.conf).
+  - path: /etc/systemd/resolved.conf.d/50-streisand-no-stub.conf
+    permissions: "0644"
+    content: |
+      [Resolve]
+      DNSStubListener=no
+
+  # sysctl hardening (sysctl role)
+  - path: /etc/sysctl.d/99-streisand.conf
+    permissions: "0644"
+    content: |
+      kernel.sysrq = 0
+      kernel.core_uses_pid = 1
+      net.ipv4.tcp_syncookies = 1
+      kernel.msgmnb = 65536
+      kernel.msgmax = 65536
+      kernel.shmmax = 68719476736
+      kernel.shmall = 4294967296
+      net.ipv4.conf.all.accept_source_route = 0
+      net.ipv4.conf.default.accept_source_route = 0
+      net.ipv4.conf.all.log_martians = 1
+      net.ipv4.conf.default.log_martians = 1
+      net.ipv4.conf.all.accept_redirects = 0
+      net.ipv4.conf.default.accept_redirects = 0
+      net.ipv4.conf.all.send_redirects = 0
+      net.ipv4.conf.default.send_redirects = 0
+      net.ipv4.conf.all.rp_filter = 0
+      net.ipv4.conf.default.rp_filter = 0
+      net.ipv4.icmp_echo_ignore_broadcasts = 1
+      net.ipv4.icmp_ignore_bogus_error_responses = 1
+      net.ipv4.conf.all.secure_redirects = 0
+      net.ipv4.conf.default.secure_redirects = 0
+      kernel.randomize_va_space = 1
+      net.core.wmem_max = 12582912
+      net.core.rmem_max = 12582912
+      fs.suid_dumpable = 0
+      fs.protected_hardlinks = 1
+      fs.protected_symlinks = 1
+
+  # unattended-upgrades (common role)
+  - path: /etc/apt/apt.conf.d/20auto-upgrades
+    permissions: "0644"
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Download-Upgradeable-Packages "1";
+      APT::Periodic::AutocleanInterval "7";
+      APT::Periodic::Unattended-Upgrade "1";
+
+runcmd:
+  - systemctl daemon-reload
+  - systemctl restart systemd-resolved || true
+  - systemctl enable systemd-networkd
+  - systemctl restart systemd-networkd
+  - sysctl --system
+  - systemctl restart ssh || true
+  - systemctl stop unattended-upgrades 2>/dev/null || true
+  - systemctl disable unattended-upgrades 2>/dev/null || true
+  - systemctl stop apt-daily.timer apt-daily-upgrade.timer 2>/dev/null || true
+  - systemctl disable apt-daily.timer apt-daily-upgrade.timer 2>/dev/null || true
+  - echo streisand-bootstrap-complete > /run/streisand-bootstrap-done
